@@ -27,7 +27,7 @@ void create_scene(scene_t *scene) {
   int i;
 
   for(i = 0; i < 4; i++)
-    scene_add(scene, &objs[i]);
+    scene_add(scene, &objs[i], i);
 }
 
 /**
@@ -42,8 +42,6 @@ int main() {
   int step_time = 100000;
   int max_timer = 10*1000000;
   double rot_angle = M_PI / 20.;
-  double dist_y = ((double)HEIGHT/(double)HEIGHT)*2.;
-  double dist_x = ((double)WIDTH/(double)WIDTH);
   
   /* Initialize the scene and the picture */
   scene_initialize(&scene);
@@ -53,7 +51,11 @@ int main() {
   /* ncurses initialization */
   ncurses_initialize();
   ncurses_colors(); 
-  ncurses_checksize(WIDTH, HEIGHT);
+  if(ncurses_checksize(WIDTH, HEIGHT) == FALSE) {
+    ncurses_stop();
+    fprintf(stderr, "Terminal is too small; actual size (%d,%d); must be (%d,%d)\n", COLS, LINES, WIDTH, HEIGHT);
+    exit(EXIT_FAILURE);
+  }
   
   /* colors initialisation */
   init_pair(1, COLOR_RED, COLOR_RED);
@@ -69,15 +71,15 @@ int main() {
   display = subwin(window, HEIGHT - 2, WIDTH - 2, 1, 1);
 
   /* Compute first picture */
-  launch_rays(&scene, dist_x, dist_y, &picture); 
+  launch_rays(&scene, &picture); 
   update_window(display, &picture);
   wrefresh(window);
 
   /* Main loop */
   while(timer < max_timer){
     werase(display);
-    rotate_y(rot_angle, &scene);
-    launch_rays(&scene, dist_x, dist_y, &picture); 
+    scene_rotate(rot_angle, &scene);
+    launch_rays(&scene, &picture); 
     update_window(display, &picture);
     wrefresh(display);
     usleep(step_time);

@@ -5,6 +5,7 @@
 #include <math.h>
 
 #include "ncurses.h"
+#include "include.h"
 
 /**
  * Initialize a picture.
@@ -42,18 +43,25 @@ void picture_delete(picture_t *picture) {
  * @param scene the scene
  */
 void scene_initialize(scene_t *scene) {
+  int i;
+
   scene->nb = 0;
+  memset(&scene->objs, 0, sizeof(scene->objs));
+  for(i = 0; i < MAX_OBJECTS; i++)
+    scene->objs[i].type = OBJECT_NONE;
 }
 
 /**
  * Add an object to a scene.
  * @param scene the scene
  * @param obj the object
+ * @param index the index
  */
-void scene_add(scene_t *scene, object_t *obj) {
-  if(scene->nb < MAX_OBJECTS) {
-    scene->objs[scene->nb] = *obj;
-    scene->nb++;
+void scene_add(scene_t *scene, object_t *obj, unsigned int index) {
+  if(index < MAX_OBJECTS) {
+    if(scene->objs[index].type == OBJECT_NONE)
+      scene->nb++;
+    scene->objs[index] = *obj;
   }
 }
 
@@ -134,8 +142,9 @@ int launch_ray(ray_t r, scene_t *scene) {
   int i, res = 0, color = 0;
   double p =0., max = 0.;
   
-  for(i = 0; i < scene->nb; ++i) {
-    if((color = intersect_object(r, scene->objs[i], &p)) != 0) {
+  for(i = 0; i < MAX_OBJECTS; ++i) {
+    if((scene->objs[i].type != OBJECT_NONE) &&
+       (color = intersect_object(r, scene->objs[i], &p)) != 0) {
       if(max < p){
         max = p;
         res = color;
@@ -149,11 +158,11 @@ int launch_ray(ray_t r, scene_t *scene) {
 /**
  * Launch rays on the scene and computes the pixels of the picture.
  * @param scene the scene
- * @param dist_x
- * @param dist_y
  * @param picture the picture
  */
-void launch_rays(scene_t *scene, double dist_x, double dist_y, picture_t *picture) {
+void launch_rays(scene_t *scene, picture_t *picture) {
+  double step_y = ((double)HEIGHT/(double)HEIGHT)*2.;
+  double step_x = ((double)WIDTH/(double)WIDTH);
   int i, j;
   ray_t r;
 
@@ -161,10 +170,10 @@ void launch_rays(scene_t *scene, double dist_x, double dist_y, picture_t *pictur
     r.direction.x = 0.;
     r.direction.y = 0.;
     r.direction.z = 1.;
-    r.origin.y = i * dist_y - (2 * picture->height) / 2.;
+    r.origin.y = i * step_y - (2 * picture->height) / 2.;
     r.origin.z = -50.;
     for(j = 0; j < picture->width; ++j){
-      r.origin.x = j * dist_x - picture->width / 2.;
+      r.origin.x = j * step_x - picture->width / 2.;
       picture->pixels[i * picture->width + j] = launch_ray(r, scene);
     } 
   }
@@ -177,15 +186,40 @@ void launch_rays(scene_t *scene, double dist_x, double dist_y, picture_t *pictur
  */
 void update_window(WINDOW *window, picture_t *picture) {
   int i, j;
+  int *iterator = &picture->pixels[0];
 
   for(i = 0; i < picture->height; ++i){
     for(j = 0; j < picture->width; ++j){
-      if(picture->pixels[i * picture->width + j] != 0){
-        wattron(window, COLOR_PAIR(picture->pixels[i * picture->width + j]));
+      if(*iterator != 0) {
+        wattron(window, COLOR_PAIR(*iterator));
         mvwprintw(window, picture->height - i, j, " ");
-        wattroff(window, COLOR_PAIR(picture->pixels[i * picture->width + j]));
+        wattroff(window, COLOR_PAIR(*iterator));
       }
+      ++iterator;
     }
+  }
+}
+
+/**
+ * Rotate an object of the scene.
+ * @param angle the angle
+ * @param obj the object
+ */
+void object_rotate(double angle, object_t *obj) {
+  sphere_t *sphere;
+  double new_x, new_z;
+
+  switch(obj->type) {
+  case OBJECT_SPHERE:
+    sphere = &obj->obj.sphere;
+    new_x = sphere->center.x * cos(angle) +
+      sphere->center.z * sin(angle);
+    new_z = -sphere->center.x * sin(angle) +
+      sphere->center.z * cos(angle);
+    sphere->center.x = new_x;
+    sphere->center.z = new_z; 
+    break;
+    /* Add other cases for other object types */
   }
 }
 
@@ -194,23 +228,10 @@ void update_window(WINDOW *window, picture_t *picture) {
  * @param angle the angle
  * @param scene the scene
  */
-void rotate_y(double angle, scene_t *scene) {
+void scene_rotate(double angle, scene_t *scene) {
   int i;
-  double new_x, new_z;
-  sphere_t *sphere;
 
-  for(i = 0; i < scene->nb; ++i){
-    switch(scene->objs[i].type) {
-    case OBJECT_SPHERE:
-      sphere = &scene->objs[i].obj.sphere;
-      new_x = sphere->center.x * cos(angle) +
-	sphere->center.z * sin(angle);
-      new_z = -sphere->center.x * sin(angle) +
-	sphere->center.z * cos(angle);
-      sphere->center.x = new_x;
-      sphere->center.z = new_z; 
-      break;
-      /* Add other cases for other object types */
-    }
-  }
+  for(i = 0; i < MAX_OBJECTS; ++i)
+    if(scene->objs[i].type != OBJECT_NONE)
+      object_rotate(angle, &scene->objs[i]);
 }

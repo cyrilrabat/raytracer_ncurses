@@ -19,6 +19,7 @@ typedef struct {
   int color;          /* Color */
 } sphere_t;
 
+#define OBJECT_NONE   0
 #define OBJECT_SPHERE 1
 
 /* An object of a scene */
@@ -75,8 +76,9 @@ void scene_initialize(scene_t *scene);
  * Add an object to a scene.
  * @param scene the scene
  * @param obj the object
+ * @param index the index
  */
-void scene_add(scene_t *scene, object_t *obj);
+void scene_add(scene_t *scene, object_t *obj, unsigned int index);
 
 /**
  * Check if a ray intersects a sphere.
@@ -107,11 +109,9 @@ int launch_ray(ray_t r, scene_t *scene);
 /**
  * Launch rays on the scene and computes the pixels of the picture.
  * @param scene the scene
- * @param dist_x
- * @param dist_y
  * @param picture the picture
  */
-void launch_rays(scene_t *scene, double dist_x, double dist_y, picture_t *picture);
+void launch_rays(scene_t *scene, picture_t *picture);
 
 /**
  * Display a picture into a window.
@@ -121,10 +121,17 @@ void launch_rays(scene_t *scene, double dist_x, double dist_y, picture_t *pictur
 void update_window(WINDOW *window, picture_t *picture);
 
 /**
+ * Rotate an object of the scene.
+ * @param angle the angle
+ * @param obj the object
+ */
+void object_rotate(double angle, object_t *obj);
+
+/**
  * Rotate the scene.
  * @param angle the angle
  * @param scene the scene
  */
-void rotate_y(double angle, scene_t *scene);
+void scene_rotate(double angle, scene_t *scene);
 
 #endif
