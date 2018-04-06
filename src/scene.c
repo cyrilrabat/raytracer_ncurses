@@ -8,6 +8,19 @@
 #include "include.h"
 
 /**
+ * Normalize a vector.
+ * @param vector the vector
+ */
+void vector_normalize(vector_t *vector) {
+  double n = sqrt(vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
+  if(n != 0.) {
+    vector->x /= n;
+    vector->y /= n;
+    vector->z /= n;
+  }
+}
+
+/**
  * Initialize a picture.
  * @param picture the picture
  * @param height the height
@@ -17,10 +30,9 @@ void picture_initialize(picture_t *picture, int height, int width) {
   picture->height = height;
   picture->width = width;
 
-  picture->pixels = (int*)malloc(sizeof(int) * height * width);
-  if(picture->pixels == NULL) {
+  if((picture->pixels = (int*)malloc(sizeof(int) * height * width)) == NULL) {
     ncurses_stop();
-    perror("Error when initializing the picture");
+    perror("Error when allocating the picture");
     exit(EXIT_FAILURE);
   }
 
@@ -41,27 +53,38 @@ void picture_delete(picture_t *picture) {
 /**
  * Initialize a scene.
  * @param scene the scene
+ * @param area the area of the scene
+ * @param camera the position of the camera
+ * @param focal the focal angle
  */
-void scene_initialize(scene_t *scene) {
+void scene_initialize(scene_t *scene, area_t *area, vector_t *camera, double focal) {
   int i;
 
+  scene->area = *area;
+  scene->camera = *camera;
+  scene->focal = focal;
   scene->nb = 0;
-  memset(&scene->objs, 0, sizeof(scene->objs));
-  for(i = 0; i < MAX_OBJECTS; i++)
-    scene->objs[i].type = OBJECT_NONE;
+  memset(scene->objs, 0, sizeof(scene->objs));
+  memset(scene->directions, 0, sizeof(scene->directions));
+  for(i = 0; i < MAX_SPHERES; i++)
+    scene->state[i] = TRUE;
 }
 
 /**
- * Add an object to a scene.
+ * Add a sphere to a scene.
  * @param scene the scene
- * @param obj the object
  * @param index the index
+ * @param sphere the sphere
+ * @param direction the direction
  */
-void scene_add(scene_t *scene, object_t *obj, unsigned int index) {
-  if(index < MAX_OBJECTS) {
-    if(scene->objs[index].type == OBJECT_NONE)
+void scene_add(scene_t *scene, unsigned int index, sphere_t *sphere, vector_t *direction) {
+  if(index < MAX_SPHERES) {
+    if(scene->state[index] == TRUE) {
       scene->nb++;
-    scene->objs[index] = *obj;
+      scene->state[index] = FALSE;
+    }
+    scene->objs[index] = *sphere;
+    scene->directions[index] = *direction;
   }
 }
 
@@ -72,7 +95,7 @@ void scene_add(scene_t *scene, object_t *obj, unsigned int index) {
  * @param t the distance along the ray 
  * @return the color or 0 if no intersection
  */
-int intersect_sphere(ray_t r, sphere_t c, double * t){
+int intersect_sphere(ray_t r, sphere_t c, double *t){
   vector_t l;
   double tc, d, t1c;
   int result = 0;
@@ -113,26 +136,6 @@ int intersect_sphere(ray_t r, sphere_t c, double * t){
 }
 
 /**
- * Check if a ray intersects an object.
- * @param r the ray
- * @param c the object
- * @param t the distance
- * @return the color or 0 if no intersection
- */
-int intersect_object(ray_t r, object_t c, double * t) {
-  int result = 0;
-
-  switch(c.type) {
-  case OBJECT_SPHERE:
-    result = intersect_sphere(r, c.obj.sphere, t);
-    break;
-    /* Add other cases for other objects */
-  }
-
-  return result;
-}
-
-/**
  * Launch a ray on the scene and computes the pixels.
  * @param r the ray
  * @param scene the scene
@@ -142,9 +145,9 @@ int launch_ray(ray_t r, scene_t *scene) {
   int i, res = 0, color = 0;
   double p =0., max = 0.;
   
-  for(i = 0; i < MAX_OBJECTS; ++i) {
-    if((scene->objs[i].type != OBJECT_NONE) &&
-       (color = intersect_object(r, scene->objs[i], &p)) != 0) {
+  for(i = 0; i < MAX_SPHERES; ++i) {
+    if((scene->state[i] == FALSE) &&
+       (color = intersect_sphere(r, scene->objs[i], &p)) != 0) {
       if(max < p){
         max = p;
         res = color;
@@ -166,17 +169,23 @@ void launch_rays(scene_t *scene, picture_t *picture) {
   int i, j;
   ray_t r;
 
-  for(i = 0; i < picture->height; ++i){
-    r.direction.x = 0.;
-    r.direction.y = 0.;
-    r.direction.z = 1.;
-    r.origin.y = i * step_y - (2 * picture->height) / 2.;
-    r.origin.z = -50.;
-    for(j = 0; j < picture->width; ++j){
-      r.origin.x = j * step_x - picture->width / 2.;
+  /* Origin of the rays */
+  r.origin = scene->camera;
+
+  /* Compute pixels */
+  for(i = 0; i < picture->height; ++i) {
+    for(j = 0; j < picture->width; ++j) {
+      /* Compute the direction of the ray */
+      r.direction.x = (r.origin.x - (j * step_x - picture->width / 2.)) * scene->focal;
+      r.direction.y = (r.origin.y - (i * step_y - (2 * picture->height) / 2.)) * scene->focal;
+      r.direction.z = 1;
+      vector_normalize(&r.direction);
+
+      /* Compute the pixel color */
       picture->pixels[i * picture->width + j] = launch_ray(r, scene);
-    } 
+    }
   }
+
 }
 
 /**
@@ -201,37 +210,95 @@ void update_window(WINDOW *window, picture_t *picture) {
 }
 
 /**
- * Rotate an object of the scene.
- * @param angle the angle
- * @param obj the object
+ * Check if there's a collision between two spheres.
+ * @param s1 the first sphere
+ * @param s2 the second sphere
+ * @return TRUE if there's a collision
  */
-void object_rotate(double angle, object_t *obj) {
-  sphere_t *sphere;
-  double new_x, new_z;
+int sphere_collision(sphere_t *s1, sphere_t *s2) {
+  vector_t tmp;
+  double dist;
 
-  switch(obj->type) {
-  case OBJECT_SPHERE:
-    sphere = &obj->obj.sphere;
-    new_x = sphere->center.x * cos(angle) +
-      sphere->center.z * sin(angle);
-    new_z = -sphere->center.x * sin(angle) +
-      sphere->center.z * cos(angle);
-    sphere->center.x = new_x;
-    sphere->center.z = new_z; 
-    break;
-    /* Add other cases for other object types */
+  tmp.x = s1->center.x - s2->center.x;
+  tmp.y = s1->center.y - s2->center.y;
+  tmp.z = s1->center.z - s2->center.z;
+
+  dist = sqrt(tmp.x * tmp.x + tmp.y * tmp.y + tmp.z * tmp.z);
+
+  return (dist < s1->radius + s2->radius);  
+}
+
+/**
+ * Move a sphere of the scene.
+ * @param scene the scene
+ * @param index the index of the sphere
+ */
+void sphere_move(scene_t *scene, int index) {
+  sphere_t tmp = scene->objs[index];
+  int i = 0, stop = 0;
+
+  /* Compute the new center of the sphere */
+  tmp.center.x += scene->directions[index].x;
+  tmp.center.y += scene->directions[index].y;
+  tmp.center.z += scene->directions[index].z;
+
+  /* Check for collision with other spheres of the scene */
+  while((i < MAX_SPHERES) && (stop == 0)) {
+    if((i != index) && (scene->state[i] == FALSE) &&
+       (sphere_collision(&scene->objs[i], &tmp)))
+      stop = 1;
+    i++;
+  }
+
+  if(stop == 1) {
+    /* A collision: invert the direction of the sphere */
+    scene->directions[index].x = -scene->directions[index].x;
+    scene->directions[index].y = -scene->directions[index].y;
+    scene->directions[index].z = -scene->directions[index].z;
+  }
+  else {
+    /* Move the sphere and check the area of the scene */
+
+    scene->objs[index].center.x += scene->directions[index].x;
+    if(scene->objs[index].center.x < scene->area.min_x) {
+      scene->directions[index].x = -scene->directions[index].x;
+      scene->objs[index].center.x = scene->area.min_x;
+    }
+    if(scene->objs[index].center.x > scene->area.max_x) {
+      scene->directions[index].x = -scene->directions[index].x;
+      scene->objs[index].center.x = scene->area.max_x;
+    }
+
+    scene->objs[index].center.y += scene->directions[index].y;
+    if(scene->objs[index].center.y < scene->area.min_y) {
+      scene->directions[index].y = -scene->directions[index].y;
+      scene->objs[index].center.y = scene->area.min_y;
+    }
+    if(scene->objs[index].center.y > scene->area.max_y) {
+      scene->directions[index].y = -scene->directions[index].y;
+      scene->objs[index].center.y = scene->area.max_y;
+    }
+
+    scene->objs[index].center.z += scene->directions[index].z;
+    if(scene->objs[index].center.z < scene->area.min_z) {
+      scene->directions[index].z = -scene->directions[index].z;
+      scene->objs[index].center.z = scene->area.min_z;
+    }
+    if(scene->objs[index].center.z > scene->area.max_z) {
+      scene->directions[index].z = -scene->directions[index].z;
+      scene->objs[index].center.z = scene->area.max_z;
+    }
   }
 }
 
 /**
- * Rotate the scene.
- * @param angle the angle
+ * Update the scene.
  * @param scene the scene
  */
-void scene_rotate(double angle, scene_t *scene) {
+void scene_update(scene_t *scene) {
   int i;
 
-  for(i = 0; i < MAX_OBJECTS; ++i)
-    if(scene->objs[i].type != OBJECT_NONE)
-      object_rotate(angle, &scene->objs[i]);
+  for(i = 0; i < MAX_SPHERES; ++i)
+    if(scene->state[i] == FALSE)
+      sphere_move(scene, i);
 }

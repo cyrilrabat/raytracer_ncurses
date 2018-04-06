@@ -18,16 +18,25 @@
  * @param scene the scene
  */
 void create_scene(scene_t *scene) {
-  object_t objs[4] = {
-    { OBJECT_SPHERE, { { {0. ,0. ,0.}, 8., 1} } },
-    { OBJECT_SPHERE, { { {20., 0., 0.}, 6., 2} } },
-    { OBJECT_SPHERE, { { {-10., 10., 0.}, 6., 3} } },
-    { OBJECT_SPHERE, { { {-25.,-15., 0.}, 10., 4} } }
+  sphere_t objs[4] = {
+    { {0. ,0. ,0.}, 8., 1 },
+    { {20., 0., 0.}, 6., 2 },
+    { {-10., 10., 0.}, 6., 3 },
+    { {-25.,-15., 0.}, 10., 4 }
+  };
+  vector_t directions[4] = {
+    { 1., 0., 0. },
+    { 1., 1., 0. },
+    { 0., 0., 0. },
+    { 0., 0.5, 1. }
   };
   int i;
+  area_t area = { -30., 30., -30., 30., -30, 30. }; 
+  vector_t camera = { 0., 0., -80 };
 
+  scene_initialize(scene, &area, &camera, 0.015);
   for(i = 0; i < 4; i++)
-    scene_add(scene, &objs[i], i);
+    scene_add(scene, i, &objs[i], &directions[i]);
 }
 
 /**
@@ -40,11 +49,9 @@ int main() {
   scene_t scene;
   int timer = 0;
   int step_time = 100000;
-  int max_timer = 10*1000000;
-  double rot_angle = M_PI / 20.;
+  int max_timer = 50*1000000;
   
   /* Initialize the scene and the picture */
-  scene_initialize(&scene);
   create_scene(&scene);
   picture_initialize(&picture, HEIGHT - 2, WIDTH - 2);
 
@@ -78,7 +85,7 @@ int main() {
   /* Main loop */
   while(timer < max_timer){
     werase(display);
-    scene_rotate(rot_angle, &scene);
+    scene_update(&scene);
     launch_rays(&scene, &picture); 
     update_window(display, &picture);
     wrefresh(display);
