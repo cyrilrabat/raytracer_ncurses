@@ -67,7 +67,7 @@ void scene_initialize(scene_t *scene, area_t *area, vector_t *camera, double foc
   memset(scene->objs, 0, sizeof(scene->objs));
   memset(scene->directions, 0, sizeof(scene->directions));
   for(i = 0; i < MAX_SPHERES; i++)
-    scene->state[i] = TRUE;
+    scene->empty[i] = TRUE;
 }
 
 /**
@@ -79,9 +79,9 @@ void scene_initialize(scene_t *scene, area_t *area, vector_t *camera, double foc
  */
 void scene_add(scene_t *scene, unsigned int index, sphere_t *sphere, vector_t *direction) {
   if(index < MAX_SPHERES) {
-    if(scene->state[index] == TRUE) {
+    if(scene->empty[index] == TRUE) {
       scene->nb++;
-      scene->state[index] = FALSE;
+      scene->empty[index] = FALSE;
     }
     scene->objs[index] = *sphere;
     scene->directions[index] = *direction;
@@ -146,7 +146,7 @@ int launch_ray(ray_t r, scene_t *scene) {
   double p =0., max = 0.;
   
   for(i = 0; i < MAX_SPHERES; ++i) {
-    if((scene->state[i] == FALSE) &&
+    if((scene->empty[i] == FALSE) &&
        (color = intersect_sphere(r, scene->objs[i], &p)) != 0) {
       if(max < p){
         max = p;
@@ -164,10 +164,11 @@ int launch_ray(ray_t r, scene_t *scene) {
  * @param picture the picture
  */
 void launch_rays(scene_t *scene, picture_t *picture) {
-  double step_y = ((double)HEIGHT/(double)HEIGHT)*2.;
-  double step_x = ((double)WIDTH/(double)WIDTH);
+  double step_y = ((double)picture->height)/((double)picture->height)*2.;
+  double step_x = ((double)picture->width)/((double)picture->width);
   int i, j;
   ray_t r;
+  int *iterator = &picture->pixels[0];
 
   /* Origin of the rays */
   r.origin = scene->camera;
@@ -177,12 +178,14 @@ void launch_rays(scene_t *scene, picture_t *picture) {
     for(j = 0; j < picture->width; ++j) {
       /* Compute the direction of the ray */
       r.direction.x = (r.origin.x - (j * step_x - picture->width / 2.)) * scene->focal;
-      r.direction.y = (r.origin.y - (i * step_y - (2 * picture->height) / 2.)) * scene->focal;
+      r.direction.y = (r.origin.y - (i * step_y - picture->height)) * scene->focal;
       r.direction.z = 1;
       vector_normalize(&r.direction);
 
       /* Compute the pixel color */
-      picture->pixels[i * picture->width + j] = launch_ray(r, scene);
+      *iterator = launch_ray(r, scene);
+      ++iterator;
+      /*picture->pixels[i * picture->width + j] = launch_ray(r, scene);*/
     }
   }
 
@@ -199,10 +202,15 @@ void update_window(WINDOW *window, picture_t *picture) {
 
   for(i = 0; i < picture->height; ++i){
     for(j = 0; j < picture->width; ++j){
+      if((i == 0) && (j == 0)) {
+	mvwprintw(window, picture->height - i, j, "X");
+      }
+      else {
       if(*iterator != 0) {
         wattron(window, COLOR_PAIR(*iterator));
-        mvwprintw(window, picture->height - i, j, " ");
+        mvwprintw(window, picture->height - i - 1, j, " ");
         wattroff(window, COLOR_PAIR(*iterator));
+      }
       }
       ++iterator;
     }
@@ -219,12 +227,13 @@ int sphere_collision(sphere_t *s1, sphere_t *s2) {
   vector_t tmp;
   double dist;
 
+  /* Compute the distance between the spheres */
   tmp.x = s1->center.x - s2->center.x;
   tmp.y = s1->center.y - s2->center.y;
   tmp.z = s1->center.z - s2->center.z;
-
   dist = sqrt(tmp.x * tmp.x + tmp.y * tmp.y + tmp.z * tmp.z);
 
+  /* Return true if the distance is lower the sum of raduises */
   return (dist < s1->radius + s2->radius);  
 }
 
@@ -244,7 +253,7 @@ void sphere_move(scene_t *scene, int index) {
 
   /* Check for collision with other spheres of the scene */
   while((i < MAX_SPHERES) && (stop == 0)) {
-    if((i != index) && (scene->state[i] == FALSE) &&
+    if((i != index) && (scene->empty[i] == FALSE) &&
        (sphere_collision(&scene->objs[i], &tmp)))
       stop = 1;
     i++;
@@ -299,6 +308,6 @@ void scene_update(scene_t *scene) {
   int i;
 
   for(i = 0; i < MAX_SPHERES; ++i)
-    if(scene->state[i] == FALSE)
+    if(scene->empty[i] == FALSE)
       sphere_move(scene, i);
 }

@@ -8,6 +8,4 @@
 #define WIDTH   80      /* Window width */
 #define HEIGHT  40      /* Window height */
 
-#define NSPHERE 4
-
 #endif

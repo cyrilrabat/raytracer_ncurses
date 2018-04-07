@@ -30,7 +30,7 @@ typedef struct {
 typedef struct {
   int nb;             /* Number of spheres in the scene */
   area_t area;        /* Area of the scene */
-  int state[MAX_SPHERES]; /* TRUE if it's empty */
+  int empty[MAX_SPHERES]; /* TRUE if it's empty */
   sphere_t objs[MAX_SPHERES]; /* Spheres of the scene */
   vector_t directions[MAX_SPHERES]; /* Directions of the spheres */
   vector_t camera;    /* Position of the camera */
@@ -118,6 +118,21 @@ void launch_rays(scene_t *scene, picture_t *picture);
  * @param picture the picture
  */
 void update_window(WINDOW *window, picture_t *picture);
+
+/**
+ * Check if there's a collision between two spheres.
+ * @param s1 the first sphere
+ * @param s2 the second sphere
+ * @return TRUE if there's a collision
+ */
+int sphere_collision(sphere_t *s1, sphere_t *s2);
+
+/**
+ * Move a sphere of the scene.
+ * @param scene the scene
+ * @param index the index of the sphere
+ */
+void sphere_move(scene_t *scene, int index);
 
 /**
  * Move a sphere of the scene.

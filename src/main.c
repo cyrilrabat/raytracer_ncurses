@@ -19,22 +19,22 @@
  */
 void create_scene(scene_t *scene) {
   sphere_t objs[4] = {
-    { {0. ,0. ,0.}, 8., 1 },
-    { {20., 0., 0.}, 6., 2 },
-    { {-10., 10., 0.}, 6., 3 },
-    { {-25.,-15., 0.}, 10., 4 }
+    { {0. ,0. ,0.}, 2., 2 },
+    { {20., 0., 0.}, 2., 3 },
+    { {-10., 10., 0.}, 2., 4 },
+    { {-15.,-15., 0.}, 2., 5 }
   };
   vector_t directions[4] = {
     { 1., 0., 0. },
     { 1., 1., 0. },
-    { 0., 0., 0. },
+    { 0., 0., 1. },
     { 0., 0.5, 1. }
   };
   int i;
   area_t area = { -30., 30., -30., 30., -30, 30. }; 
-  vector_t camera = { 0., 0., -80 };
+  vector_t camera = { 0., 0., -50 };
 
-  scene_initialize(scene, &area, &camera, 0.015);
+  scene_initialize(scene, &area, &camera, 0.018);
   for(i = 0; i < 4; i++)
     scene_add(scene, i, &objs[i], &directions[i]);
 }
@@ -58,20 +58,21 @@ int main() {
   /* ncurses initialization */
   ncurses_initialize();
   ncurses_colors(); 
-  if(ncurses_checksize(WIDTH, HEIGHT) == FALSE) {
+  if(ncurses_checksize(HEIGHT, WIDTH) == FALSE) {
     ncurses_stop();
     fprintf(stderr, "Terminal is too small; actual size (%d,%d); must be (%d,%d)\n", COLS, LINES, WIDTH, HEIGHT);
     exit(EXIT_FAILURE);
   }
   
-  /* colors initialisation */
-  init_pair(1, COLOR_RED, COLOR_RED);
-  init_pair(2, COLOR_BLUE, COLOR_BLUE);
-  init_pair(3, COLOR_GREEN, COLOR_GREEN);
-  init_pair(4, COLOR_YELLOW, COLOR_YELLOW);
+  /* colors initialisation : no more colors (ncurses!!!) */
+  init_pair(1, COLOR_WHITE, COLOR_BLACK);
+  init_pair(2, COLOR_RED, COLOR_RED);
+  init_pair(3, COLOR_BLUE, COLOR_BLUE);
+  init_pair(4, COLOR_GREEN, COLOR_GREEN);
+  init_pair(5, COLOR_YELLOW, COLOR_YELLOW);
   
   /* Create the window */
-  bkgd(COLOR_PAIR(2));
+  bkgd(COLOR_PAIR(1));
   refresh();
   window = newwin(HEIGHT, WIDTH, 0, 0);
   box(window,0,0);

@@ -39,11 +39,11 @@ void ncurses_colors() {
 
 /**
  * Check the sizes of the terminal.
- * @param width the width needed
  * @param height the height needed
+ * @param width the width needed
  * @return TRUE if the sizes are OK else returns FALSE
  */
-int ncurses_checksize(int width, int height) {
+int ncurses_checksize(int height, int width) {
   int result = TRUE;
 
   if((COLS < width) || (LINES < height))
